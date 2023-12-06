@@ -1,0 +1,13 @@
+.Rproj.user
+.Rproj.user
+.Rhistory
+.Rdata
+.httr-oauth
+.DS_Store
+.quarto
+play.Rmd
+github.R
+data/
+graphs/
+data_scripts/
+www/

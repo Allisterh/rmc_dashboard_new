@@ -1,0 +1,2364 @@
+---
+title: "Dashboard Reserve Management"
+date: "`r format(Sys.Date(), '%b-%Y')`"
+output: 
+  flexdashboard::flex_dashboard:
+    vertical_layout: scroll
+    orientation: rows
+    css: www/styles1.css
+    source_code: embed
+    logo: www/eccb4.png
+    social: [menu]
+    navbar:
+        - { icon: "fa-github", href:"https://github.com/ahodge", align: right }
+        - { icon: "fa-linkedin", href: "https://www.linkedin.com/in/eastern-caribbean-central-bank/", align: right }
+        - { icon: "fa-at", href: "mailto:allister.hodge@eccb-centralbank.org", align: right }
+---
+pppp
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(knitr)
+# sys.source("packages/load_packages.R", envir = knitr::knit_global())
+# source('packages/load_packages.R',local = knitr::knit_global())
+# Install thematic and un-comment for themed static plots (i.e., ggplot2)
+# thematic::thematic_rmd()
+read_chunk('packages/load_packages.R')
+library(pacman)
+require(tidyverse)
+require(data.table)
+require(here)
+library(tools)
+library(metathis)
+library(r2social)
+library(fontawesome)
+suppressPackageStartupMessages(pacman::p_load(scales, glue, fs, lubridate,
+                                              highcharter, plotly,
+TSstudio,dygraphs,downloadthis, tbl2xts,reactable,reactablefmtr,DT, gt, 
+gtExtras, readxl,tsibble, fable, fabletools,ragg,
+fable.ata, fable.prophet,ggsci, ggrepel,tbl2xts))
+
+
+library(fredr)
+fredr::fredr_set_key('7d33f9e550f6a2a4a8161e0207f497b3')
+
+knitr::opts_chunk$set(echo = FALSE, 
+                      collapse = TRUE,
+                      comment = "#>",
+                      fig.path = "./graphs",
+                      fig.retina = 2, # Control using dpi
+                      fig.width = 6,  # generated images
+                      fig.pos = "t",  # pdf mode
+                      fig.align = "center",
+                      dpi = if (knitr::is_latex_output()) 72 else 300, 
+                      out.width = "100%",
+                      dev = "ragg_png",
+                      dev.args = list(png = list(type = "cairo-png")),
+                      optipng = "-o1 -quiet")
+                                              
+```
+
+Row
+-------------------
+
+### Conditional Value at Risk/Expected Shortfall
+```{r cvar}
+
+htmltools::includeMarkdown('www/cvar.md')
+```
+
+
+### Duration Risk
+Duration is a measure of price sensitivity of bonds to interest rate changes.The longer the duration or maturity of a bond, the more sensitive is its price to a change in interest rates.
+
+There are 4 types of duration considered in the literature:
+1. Effective Duration
+2. Modified Duration 
+3. Macaulay Duration
+4. Key Rate Duration
+
+**To set ideas below is an example of how to interpret duration:** 
+
+1) If modified duration is 1 (year) and interest rate change is +25bp (= +0.25%), % change of bond price is equal to -0.25% (= -1*0.25%).
+
+2) If modified duration is 10 (years) and interest rates change by +25bp (= +0.25%), % change of bond price is equal to -2.5% (= -10*0.25%).
+
+* As at `r format(Sys.Date(), '%b-%Y')` **Macaulay Duration** for the reserve portfolio was 1.88.   
+* As at `r format(Sys.Date(), '%b-%Y')` **Modified Duration** of the reserve portfolio was 1.41.
+
+
+**Convexity**
+*Convexity is a measure of the curvature of the relationship between the price of a bond and its yield. It provides an additional refinement to duration as a measure of a bond’s sensitivity to interest rate changes.*
+
+* Convexity is typically expressed in terms of percentage, and it represents the relative change the price of bond  for a given change in yield.
+* Effective convexity takes into account the modified duration and the change in yield, providing a more accurate measure of a bonds price sensitivity to interest rate changes.
+* Effective convexity provides a more precise estimate of the bond price change compared to convexity, especially when the yield changes are significant.
+
+Row
+------------
+### Stop Loss Model
+
+```{r gauge_plot, echo=FALSE}
+col_stops <- data.frame(
+  q = c(0.15, 0.4, .8),
+  c = c('#55BF3B', '#DDDF0D', '#DF5353'),
+  stringsAsFactors = FALSE)
+
+highchart() %>%
+  hc_chart(type = "solidgauge") %>%
+  hc_pane(
+    startAngle = -90,
+    endAngle = 90,
+    background = list(
+      outerRadius = '100%',
+      innerRadius = '60%',
+      shape = "arc")
+  ) %>%
+  hc_tooltip(enabled = FALSE) %>% 
+  hc_yAxis(
+    stops = list_parse2(col_stops),
+    lineWidth = 0,
+    minorTickWidth = 0,
+    tickAmount = 2,
+    min = 0,
+    max = 100,
+    labels = list(y = 26, style = list(fontSize = "22px"))
+  ) %>%
+  hc_add_series(
+    data = 90,
+    dataLabels = list(
+      y = -50,
+      borderWidth = 0,
+      useHTML = TRUE,
+      style = list(fontSize = "40px")
+    )
+  ) %>% 
+  hc_size(height = 300)
+
+
+
+```
+
+Row
+--------
+### Heat-map Stop Loss Model
+```{r stop loss2}
+set.seed(123)
+m <- matrix(round(rnorm(200), 2), 12, 12)
+
+colnames(m) <- month.name
+# colnames(m) <- paste("Col", 1:10)
+rownames(m) <- paste(2023:2012 )
+
+as_tibble(m) %>% 
+  mutate(year = as.character(2012:2023)) %>% 
+  relocate(year, .before = January) %>% 
+  gt() %>% 
+  tab_style_body(
+    columns = c(2:13),
+    style = cell_fill(color = "green"),
+    fn = \(x) x<0
+    ) %>% 
+  tab_style_body(
+    columns = c(2:13),
+    style = cell_fill(color = "orange"),
+    fn = \(x) x>=0 && x<=1.5) %>% 
+ 
+  tab_style_body(
+    columns = c(2:13),
+    style = cell_fill(color = "red"),
+    fn = function(x) x >= 1.51) %>% 
+  tab_footnote(
+    'Data here is stylised meant to show a graphical\nrepresentation of a heatmap for the stop loss',
+    locations =  cells_column_labels(columns = January),
+    placement = c("left")
+  )
+
+```
+
+
+Row 
+-------------------------------------------------------------------------------
+### GDP OECD
+
+```{r OECD_GDP, echo=FALSE, warning=FALSE, fig.width=4}
+df <- read_csv('data/gdp_oecd.csv ')
+
+
+df2 <- df %>%  select(c(1,5,9,17)) %>% 
+  dplyr::rename_all(~tolower(.)) %>% 
+  mutate(time = ym(time)) |>
+  filter(measure == 'GYSA') %>% 
+  pivot_wider(names_from = location, values_from = value) %>% 
+  mutate_if(is.numeric, ~round(.,2))
+
+
+p_gdp <- df2[,c(2:7)] %>%  
+  # filter(time >= as.Date('2021-01-01')) %>% 
+  
+  pivot_longer(names_to = 'Country', values_to = 'value', -time)
+
+
+  hchart(p_gdp, "line", hcaes(x = time, y = value, 
+                               group = Country)) |>
+  hc_title(text= "GDP OECD Countries incl China") |> 
+  hc_caption(text = "Data Source | St Louis Fred" ) |>
+   hc_yAxis(
+    title = list(text = "Percent Change (%)")) |>
+  hc_plotOptions(
+    line = list(lineWidth = 5)) |>
+  hc_rangeSelector(enabled = F)
+  
+
+```
+
+Row
+-----------
+### Unemployment Rates OECD
+```{r labour_oecd, echo=FALSE}
+path <- "data/labour_oecd.xlsx"
+
+
+df <- path %>%  
+  excel_sheets() %>% 
+  purrr::set_names() %>% 
+  map(read_excel, path = path)
+
+
+df <- read_csv('data/labour_oecd.csv ')
+
+
+df2 <- df %>%  select(c(1,9,17)) %>% 
+  dplyr::rename_all(~tolower(.)) %>% 
+  mutate(time = ym(time)) %>% 
+  pivot_wider(names_from = location, values_from = value) %>% 
+  mutate_if(is.numeric, ~round(.,2)) %>% 
+  dplyr::rename(date = time)
+
+
+
+p_unemployment <- tbl2xts::tbl_xts(df2 )
+ 
+
+
+
+
+highchart(type = "stock") %>% 
+  hc_add_series(p_unemployment$CAN, type = "line",
+                name = 'CAN',
+                color = "#d35400",
+                tooltip = list(valueSuffix = '%')) %>% 
+  
+  hc_add_series(p_unemployment$USA, type = "line",
+                name = 'USA',
+                tooltip = list(valueSuffix = '%')) %>% 
+  hc_add_series(p_unemployment$GBR, type = "line",
+                name = 'UK',
+                tooltip = list(valueSuffix = '%')) %>%
+  hc_add_series(p_unemployment$EA20, type = "line",
+                name = 'Euro-Area',
+                tooltip = list(valueSuffix = '%')) %>%
+  
+  hc_rangeSelector(verticalAlign = "bottom",  
+                   buttons = list(
+                     list(type = 'all', text = 'All'),
+                     list(type = 'ytd', text = 'YTD'),
+                     list(type = 'month', count = 6, text = '6m'),
+                     list(type = 'year', count = 1, text = '1y'),
+                     list(type = 'year', count = 5, text = '5y'),
+                     list(type = 'year', count = 10, text = '10y')),
+                     buttonTheme = list(
+                       fill =  'none',
+                       stroke = 'none',
+                       style = list(
+                         color = '#039',
+                         fontWeight = 'bold')),
+                   inputBoxBorderColor = 'gray',
+                   inputBoxWidth = 120,
+                   inputBoxHeight = 18,
+                   inputStyle = list(
+                     color = '#039',
+                     fontWeight =  'bold')
+                     ) %>% 
+  
+  hc_title(text = 'Unemployment Rates OECD', align = 'center') |>
+  hc_yAxis(labels = list(align = 'left',
+                         style = list(
+                           color = 'black',
+                           fontSize = 'medium'))) %>% 
+  hc_xAxis(lineColor ='black', lineWidth = 2,
+           tickColor = 'black',
+           labels = 
+             list(style = list(
+               color = 'black',
+               fontSize = 'medium')),
+           dateTimeLabelFormats = list(day = '%Y'), type = "datetime") |>
+  hc_legend(
+    enabled = TRUE,
+    align = "left",
+    verticalAlign = "top",
+    layout = "horizantal") |>
+  hc_plotOptions(
+    line = list(lineWidth = 4.5)) |>
+  hc_exporting(
+    enabled = TRUE, # always enabled
+    filename = "Unemployment Rates OECD") |>                      
+
+  hc_tooltip(shared = FALSE)
+
+ 
+ 
+# fig1 <- plot_ly(p_unemployment, x = ~time) 
+
+# fig1 %>% 
+#   add_lines(y = ~`value`, name = "Unemployment Rate") %>% 
+  # add_lines(y = ~`two-year`, name = "Two-year") %>% 
+  # add_lines(y = ~`fed-funds`, name = "Fed-Funds") %>% 
+  # add_lines(y = ~`six-months`, name = "Six-Months") %>% 
+  # add_lines(y = ~`three-month`, name = "Three-Months")
+
+```
+
+
+### Inflation Rates OECD
+```{r inflation_oecd}
+df <- read_csv('data/cpi_oecd.csv ')
+
+
+
+df2 <- df %>%  select(c(1,3,9,17)) %>% 
+  dplyr::rename_all(~tolower(.)) %>% 
+  mutate(time = ym(time)) %>% 
+  filter(subject == 'CPALTT01') %>% 
+  pivot_wider(names_from = location, values_from = value) %>% 
+  mutate_if(is.numeric, ~round(.,2))
+
+
+p_cpi_oecd <- df2[,c(2:6)] %>% 
+  dplyr::rename(date = time)
+
+
+
+p_cpi_oecd_xts <- tbl2xts::tbl_xts(p_cpi_oecd)
+
+
+highchart(type = "stock") %>% 
+  hc_add_series(p_cpi_oecd_xts$CAN, type = "line",
+                name = 'CAN',
+                color = "#EE160C",
+                tooltip = list(valueSuffix = '%')) %>% 
+  
+  hc_add_series(p_cpi_oecd_xts$USA, type = "line",
+                name = 'USA',color = '#020817',
+                tooltip = list(valueSuffix = '%')) %>% 
+  hc_add_series(p_cpi_oecd_xts$GBR, type = "line",
+                name = 'UK',
+                color = '#0C4AEE',
+                tooltip = list(valueSuffix = '%')) %>%
+  hc_add_series(p_cpi_oecd_xts$EA20, type = "line",
+                name = 'Euro-Area',
+                color = '#04A532',
+                tooltip = list(valueSuffix = '%')) %>%
+  
+  hc_rangeSelector(verticalAlign = "bottom",  
+                   buttons = list(
+                     list(type = 'all', text = 'All'),
+                     list(type = 'ytd', text = 'YTD'),
+                     list(type = 'month', count = 6, text = '6m'),
+                     list(type = 'year', count = 1, text = '1y'),
+                     list(type = 'year', count = 5, text = '5y'),
+                     list(type = 'year', count = 10, text = '10y')),
+                     buttonTheme = list(
+                       fill =  'none',
+                       stroke = 'none',
+                       style = list(
+                         color = '#039',
+                         fontWeight = 'bold')),
+                   inputBoxBorderColor = 'gray',
+                   inputBoxWidth = 120,
+                   inputBoxHeight = 18,
+                   inputStyle = list(
+                     color = '#039',
+                     fontWeight =  'bold')
+                     ) %>% 
+  
+  hc_title(text = 'Inflation Rates OECD', align = 'center') |>
+  hc_yAxis(labels = list(align = 'left',
+                         style = list(
+                           color = 'black',
+                           fontSize = 'medium'))) %>% 
+  hc_xAxis(lineColor ='black', lineWidth = 2,
+           tickColor = 'black',
+           labels = 
+             list(style = list(
+               color = 'black',
+               fontSize = 'medium')),
+           dateTimeLabelFormats = list(day = '%Y'), type = "datetime") |>
+  hc_legend(
+    enabled = TRUE,
+    align = "left",
+    verticalAlign = "top",
+    layout = "horizantal") |>
+  hc_plotOptions(
+    line = list(lineWidth = 4.5)) |>
+  hc_exporting(
+    enabled = TRUE, # always enabled
+    filename = "Inflation Rates OECD") |>                      
+
+  hc_tooltip(shared = FALSE)
+
+```
+
+
+Row 
+-------------------------------------------------------------------------------
+### Real GDP Growth 
+```{r gdp_gRowth, echo=FALSE,warning=FALSE,fig.width=4}
+gdp <- fredr(
+  series_id = "GDPC1",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date(),
+  units = 'cca')
+
+gdp1 <- gdp %>% dplyr::select(c(date, value)) 
+
+
+
+p_gdp <- tbl2xts::tbl_xts(gdp1 )
+ 
+
+
+
+
+highchart(type = "stock") %>% 
+  hc_add_series(p_gdp$value, type = "line",
+                name = 'GDP-USA',
+                color = "#d35400",
+                tooltip = list(valueSuffix = '%')) %>% 
+  
+  hc_rangeSelector(verticalAlign = "bottom",  
+                   buttons = list(
+                     list(type = 'all', text = 'All'),
+                     list(type = 'ytd', text = 'YTD'),
+                     list(type = 'month', count = 6, text = '6m'),
+                     list(type = 'year', count = 1, text = '1y'),
+                     list(type = 'year', count = 5, text = '5y'),
+                     list(type = 'year', count = 10, text = '10y')),
+                     buttonTheme = list(
+                       fill =  'none',
+                       stroke = 'none',
+                       style = list(
+                         color = '#039',
+                         fontWeight = 'bold')),
+                   inputBoxBorderColor = 'gray',
+                   inputBoxWidth = 120,
+                   inputBoxHeight = 18,
+                   inputStyle = list(
+                     color = '#039',
+                     fontWeight =  'bold')
+                     ) %>% 
+  
+  hc_title(text = '<b>Real GDP Growth USA</b>', align = 'center',
+           useHTML = TRUE) |>
+  hc_yAxis(labels = list(align = 'left',
+                         style = list(
+                           color = 'black',
+                           fontSize = 'medium'))) %>% 
+  hc_xAxis(lineColor ='black', lineWidth = 2,
+           tickColor = 'black',
+           labels = 
+             list(style = list(
+               color = 'black',
+               fontSize = 'medium')),
+           dateTimeLabelFormats = list(day = '%Y'), type = "datetime") |>
+  hc_legend(
+    enabled = TRUE,
+    align = "left",
+    verticalAlign = "top",
+    layout = "horizantal") |>
+  hc_plotOptions(
+    line = list(lineWidth = 4.5)) |>
+  hc_exporting(
+    enabled = TRUE, # always enabled
+    filename = "GDP USA") |>                      
+
+  hc_tooltip(shared = FALSE)
+
+
+```
+
+
+### GDP Nowcast
+```{r gdp_nowcast, echo = FALSE}
+gdpnow <- fredr(
+  series_id = "GDPNOW",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date())
+
+
+gdpnow1 <- gdpnow %>% dplyr::select(c(date, value)) %>% 
+  mutate(value = value/100)
+
+
+
+p_gdpnow <- gdp %>%  
+  dplyr::select(c('date', 'value')) %>% 
+  left_join(dplyr::select(gdpnow,c('date', 'value')), by = 'date') |>
+  setNames(c('date', 'GDP', 'GDP_now')) %>% 
+  pivot_longer(names_to = 'GDP', values_to = 'values', -date) |>
+   arrange(GDP) %>% 
+   filter(date >= as.Date("2008-01-01")) |>
+  ggplot(aes(x= date, y = values/100, color = GDP)) +
+  geom_hline(yintercept = 0, linewidth = 1.2) +
+  geom_line(linewidth = 1.2, lineend = 'round', na.rm = T) +
+  scale_y_continuous(labels = scales::percent_format() ,
+                     breaks = scales::breaks_width(0.05)) +
+  scale_x_date(labels = scales::label_date("%Y"),
+               date_breaks = '3 years') +
+  scale_color_manual(values = c('black', 'red')) +
+  labs(x= "Quarterly", y = 'GDP Growth', 
+       caption = 'Source: St.Louis Fred\nData as at:',
+       title = 'Real GDP Growth') +
+  theme_minimal()
+
+ggplotly(p_gdpnow)
+```
+
+Row
+----------------------------------------------------------------------------
+### Chicago Fed National Activity Index (CFNAI)
+```{r CFNAI, echo=FALSE}
+# Chicago Fed National Activity Index: Three Month Moving Average (CFNAIMA3)
+gdp_cfnai <- fredr(
+  series_id = "CFNAIMA3",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date(),
+  frequency = 'q')
+
+p_cfnai <- gdp_cfnai %>%  
+  dplyr::select(c("date", "value"))
+
+p_cfnai1 <- tbl2xts::tbl_xts(p_cfnai )
+ 
+
+
+highchart(type = "stock") %>% 
+  hc_add_series(p_cfnai1$value, type = "line",
+                name = 'CFNAI',
+                color = "#d35400",
+                tooltip = list(valueSuffix = '%')) %>% 
+  
+ 
+  
+  hc_rangeSelector(verticalAlign = "bottom",  
+                   buttons = list(
+                     list(type = 'all', text = 'All'),
+                     list(type = 'ytd', text = 'YTD'),
+                     list(type = 'month', count = 6, text = '6m'),
+                     list(type = 'year', count = 1, text = '1y'),
+                     list(type = 'year', count = 5, text = '5y'),
+                     list(type = 'year', count = 10, text = '10y')),
+                     buttonTheme = list(
+                       fill =  'none',
+                       stroke = 'none',
+                       style = list(
+                         color = '#039',
+                         fontWeight = 'bold')),
+                   inputBoxBorderColor = 'gray',
+                   inputBoxWidth = 120,
+                   inputBoxHeight = 18,
+                   inputStyle = list(
+                     color = '#039',
+                     fontWeight =  'bold')
+                     ) %>% 
+  
+  hc_title(text = '<b>Chicago Fed National Activity Index</b>', align = 'center',
+           useHTML = TRUE) |>
+  hc_yAxis(labels = list(align = 'left',
+                         style = list(
+                           color = 'black',
+                           fontSize = 'medium'))) %>% 
+  hc_xAxis(lineColor ='black', lineWidth = 2,
+           tickColor = 'black',
+           labels = 
+             list(style = list(
+               color = 'black',
+               fontSize = 'medium')),
+           dateTimeLabelFormats = list(day = '%Y'), type = "datetime") |>
+  hc_legend(
+    enabled = TRUE,
+    align = "left",
+    verticalAlign = "top",
+    layout = "horizantal") |>
+  hc_plotOptions(
+    line = list(lineWidth = 4.5)) |>
+  hc_exporting(
+    enabled = TRUE, # always enabled
+    filename = "CFNAI") |>                      
+
+  hc_tooltip(shared = FALSE)
+
+```
+
+
+
+### Weekly Economic Index (WEI)
+```{r WEI, echo=FALSE, warning=TRUE}
+# Weekly Economic Index (Lewis-Mertens-Stock) (WEI)
+gdpwei <- fredr(
+  series_id = "WEI",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date(), frequency = 'm')
+
+
+p_gdpwei <- gdpwei %>%  
+  dplyr::select(c("date", "value")) 
+
+
+
+highchart(type = "stock") %>% 
+  hc_add_series(data = p_gdpwei, type = "line", hcaes(x = date, y = value),
+                name = "WEI", color = 'black',
+                lineWidth = 4.5) |>
+  
+  hc_xAxis(lineColor ='black', lineWidth = 2,
+           tickColor = 'black',
+           labels = list(style = list(
+                        color = 'black',
+                        fontSize = 'medium')),
+           dateTimeLabelFormats = list(year = "%Y"), 
+           type = "datetime") %>% 
+  hc_rangeSelector(verticalAlign = "bottom",  
+                   buttons = list(
+                     list(type = 'all', text = 'All'),
+                     list(type = 'ytd', text = 'YTD'),
+                     list(type = 'month', count = 6, text = '6m'),
+                     list(type = 'year', count = 1, text = '1y'),
+                     list(type = 'year', count = 5, text = '5y'),
+                     list(type = 'year', count = 10, text = '10y'))) %>% 
+  hc_yAxis(labels = list(align = 'left',
+                         style = list(
+                           color = 'black',
+                           fontSize = 'medium'))) %>% 
+  hc_title(text = "Weekly Economic Index", 
+           style = list(fontWeight = 'bold')) |>
+  hc_subtitle(
+    text = "Weekly data aggregated to monthly using averages",
+    style = list(color = "black", fontWeight = "bold")
+  )  |>
+  hc_legend(
+    enabled = TRUE, 
+    align = "right",
+    verticalAlign = "top",
+    layout = "vertical",
+    verticalAlign=  'top')
+
+```
+
+
+
+Row
+---------------------------------------------------------
+### Inflation Rates USA
+```{r cpi,echo=FALSE,warning=FALSE,fig.width=4}
+cpi <- fredr(
+  series_id = "CPIAUCSL",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date(),
+  units = 'pc1')
+
+
+cpi_core <- fredr(
+  series_id = "CPILFESL",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date(),
+  units = 'pc1')
+
+# Inflation expectations data 1 year ahead only
+
+inflation_exp <- fredr(
+  series_id = "EXPINF1YR",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date())
+
+
+cpi_join <- cpi %>%  
+  dplyr::select(c('date', 'value')) %>% 
+  left_join(dplyr::select(cpi_core, c('date', 'value')), by = 'date') %>% 
+  mutate(across(where(is.numeric), ~round(.,2))) %>% 
+  setNames(c("Date", 'CPI', 'cpicore')) %>% 
+  pivot_longer(names_to = 'Inflation' , values_to = 'values',-Date)
+
+
+# hchart(cpi_join, "line", hcaes(x = Date, y = values, 
+#                                group = Inflation)) |>
+#   hc_title(text= "Inflation Rates USA") |> 
+#   hc_caption(text = "Data Source | St Louis Fred" ) |>
+#    hc_yAxis(
+#     title = list(text = "Percent Change (%)")) |>
+#   hc_plotOptions(
+#     line = list(lineWidth = 5)) |>
+#        
+#  hc_rangeSelector(verticalAlign = "bottom",  buttonPosition = 'left',
+#   buttons = list(
+#     list(type = 'all', text = 'All'),
+#     list(type = 'ytd', text = 'YTD'),
+#     list(type = 'month', count = 6, text = '6m'),
+#     list(type = 'year', count = 1, text = '1y'),
+#     list(type = 'year', count = 5, text = '5y'),
+#     list(type = 'year', count = 10, text = '10y')))
+
+
+pce <- fredr(
+  series_id = "PCE",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date(),
+  units = 'pc1')
+
+
+pce_core <- fredr(
+  series_id = "PCEPILFE",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date(),
+  units = 'pc1')
+
+
+pce_join <- pce %>%  
+  dplyr::select(c('date', 'value')) %>% 
+  left_join(dplyr::select(pce_core, c('date', 'value')), by = 'date') %>% 
+  mutate(across(where(is.numeric), ~round(.,2))) %>% 
+  setNames(c("Date", 'pce', 'pcecore'))
+
+
+cpi2 <- cpi %>%  
+  dplyr::select(c('date', 'value')) %>% 
+  left_join(dplyr::select(cpi_core, c('date', 'value')), by = 'date') %>% 
+  mutate(across(where(is.numeric), ~round(.,2))) %>% 
+  setNames(c("Date", 'CPI', 'cpicore')) 
+  
+  
+cpi_join1 <-cpi2 %>% 
+  left_join(pce_join, by = 'Date' )
+                         
+
+
+cpi_join2 <- tbl2xts::tbl_xts(cpi_join1)
+
+highchart(type = "stock") %>% 
+  hc_add_series(cpi_join2$CPI, type = "line",
+                name = 'CPI',
+                color = "#d35400",
+                lineWidth = 4.5,
+                tooltip = list(valueSuffix = '%')) %>% 
+
+  hc_add_series(cpi_join2$cpicore, type = "line",
+                name = 'CPI-Core',
+                lineWidth = 4.5,
+                tooltip = list(valueSuffix = '%')) %>% 
+  hc_add_series(cpi_join2$pce, type = "line",
+                name = 'PCE',
+                lineWidth = 4.5,
+                tooltip = list(valueSuffix = '%')) %>%
+  hc_add_series(cpi_join2$pcecore, type = "line",
+                name = 'PCE-Core',
+                lineWidth = 4.5,
+                tooltip = list(valueSuffix = '%')) %>%
+  
+  hc_rangeSelector(verticalAlign = "bottom",  
+                   buttons = list(
+                     list(type = 'all', text = 'All'),
+                     list(type = 'ytd', text = 'YTD'),
+                     list(type = 'month', count = 6, text = '6m'),
+                     list(type = 'year', count = 1, text = '1y'),
+                     list(type = 'year', count = 5, text = '5y'),
+                     list(type = 'year', count = 10, text = '10y'))) %>% 
+  # hc_xAxis(dateTimeLabelFormats = list(day = '%Y'), type = "datetime") %>% 
+  hc_plotOptions(
+    line = list(lineWidth = 4.5)) |>
+  hc_exporting(
+    enabled = TRUE, # always enabled
+    filename = "Inflation Rates USA") |>                      
+  hc_yAxis(labels = list(align = 'left',
+                         
+                         style = list(
+                           color = 'black',
+                           fontSize = 'medium'))) %>% 
+   hc_xAxis(lineColor ='black', lineWidth = 2,
+           tickColor = 'black',
+           labels = list(style = list(
+             color = 'black',
+             fontSize = 'medium')),
+           dateTimeLabelFormats = list(year = "%Y"), 
+           type = "datetime") %>% 
+  hc_legend(enabled = TRUE)  |>
+  # hc_legend(
+  #   align = "top",
+  #   verticalAlign = "top",
+  #   layout = "horizantal") |>
+  hc_tooltip(shared = FALSE) |>
+ hc_title(
+    text = "<b>Rates of Inflation USA</b>",
+    margin = 20,
+    align = "left",
+    style = list(color = "black", useHTML = TRUE)
+    )
+
+
+```
+
+
+### Trimmed Mean Inflation Measures
+```{r trimmed_inflation,echo=FALSE,warning=FALSE,fig.width=4}
+# Trimmed Mean PCE Inflation Rate Dallas Fed
+inflation_exp2 <- fredr(
+  series_id = "PCETRIM12M159SFRBDAL",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date())
+
+
+# 16% Trimmed-Mean Consumer Price Index Cleveland Fed
+inflation_exp3 <- fredr(
+  series_id = "TRMMEANCPIM159SFRBCLE",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date())
+
+
+# Median Consumer Price Index
+inflation_exp4 <- fredr(
+  series_id = "MEDCPIM159SFRBCLE",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date())
+
+# sticky price inflation
+
+inflation_exp1 <- fredr(
+  series_id = "CORESTICKM159SFRBATL",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date())
+
+
+cpi_alt <- inflation_exp2 %>% 
+  dplyr::select(c('date', 'value')) %>% 
+  left_join(dplyr::select(inflation_exp3,c('date', 'value')), by = 'date') |>
+  left_join(dplyr::select(inflation_exp4,c('date', 'value')), by = 'date')  |>
+  left_join(dplyr::select(inflation_exp1,c('date', 'value')), by = 'date')  |>
+  setNames(c('date', 'Trimmed-Mean-PCE', '16%-Trimmed-Mean-CPI', 
+             'Median-CPI','Sticky.Price.inflation')) %>% 
+  dplyr::rename_all(~toTitleCase(.)) %>% 
+  mutate(across(where(is.numeric), ~round(.,2)))
+
+
+cpi_alt2 <- tbl2xts::tbl_xts(cpi_alt)
+
+highchart(type = "stock") %>% 
+  hc_add_series(cpi_alt2$Sticky.Price.inflation, type = "line",
+                name = 'Sticky.Price.inflation',
+                color = "#d35400",
+                lineWidth = 4.5,
+                tooltip = list(valueSuffix = '%')) %>% 
+  
+  hc_add_series(cpi_alt2$`Trimmed-Mean-PCE`, type = "line",
+                name = 'Trimmed-Mean-PCE',
+                lineWidth = 4.5,
+                tooltip = list(valueSuffix = '%')) %>% 
+  hc_add_series(cpi_alt2$`16%-Trimmed-Mean-CPI`, type = "line",
+                name = '16%-Trimmed-Mean-CPI',
+                lineWidth = 4.5,
+                tooltip = list(valueSuffix = '%')) %>%
+  hc_add_series(cpi_alt2$`Median-CPI`, type = "line",
+                name = 'Median-CPI',
+                lineWidth = 4.5,
+                tooltip = list(valueSuffix = '%')) %>%
+  hc_xAxis(dateTimeLabelFormats = list(year = '%Y'), type = "datetime") |>
+  
+  hc_rangeSelector(verticalAlign = "bottom",  
+                   buttons = list(
+                     list(type = 'all', text = 'All'),
+                     list(type = 'ytd', text = 'YTD'),
+                     list(type = 'month', count = 6, text = '6m'),
+                     list(type = 'year', count = 1, text = '1y'),
+                     list(type = 'year', count = 5, text = '5y'),
+                     list(type = 'year', count = 10, text = '10y'))) |>
+  hc_plotOptions(
+    line = list(lineWidth = 4.5)) |>
+  hc_exporting(
+    enabled = TRUE, # always enabled
+    filename = "Inflation Rates USA"
+  ) |>                      
+  hc_yAxis(labels = list(align = 'left',
+                         style = list(
+                           color = 'black',
+                           fontSize = 'medium'))) %>% 
+  hc_xAxis(lineColor ='black', lineWidth = 2,
+           tickColor = 'black',
+           labels = list(style = list(
+             color = 'black',
+             fontSize = 'medium')),
+           dateTimeLabelFormats = list(year = "%Y"), 
+           type = "datetime") %>% 
+  hc_legend(enabled = TRUE)  |>
+  # hc_legend(
+  #   align = "top",
+  #   verticalAlign = "top",
+  #   layout = "horizantal") |>
+  hc_tooltip(shared = FALSE) |>
+  hc_title(
+    text = "<b>Rates of Inflation USA</b>",
+    margin = 20,
+    align = "left",
+    style = list(color = "black", useHTML = TRUE)
+  )
+
+```
+
+
+Row
+-----------------------------------------------------------------------
+### Oil Prices
+```{r oil_prices,echo=FALSE,warning=FALSE,fig.width=4}
+brent <- fredr(
+  series_id = "DCOILBRENTEU",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date(),
+  frequency = 'm')
+
+wti <- gdp <- fredr(
+  series_id = "DCOILWTICO",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date(),
+  frequency = 'm')
+
+
+
+oil <- brent[,c(1,3)] %>% left_join(wti, by = 'date') %>% 
+  dplyr::select(c('date', 'value.x', 'value.y')) %>% 
+  set_names(c('date', 'brent', 'wti')) %>% 
+  pivot_longer(names_to = 'variable', values_to = 'value',
+               -date)
+
+
+hchart(oil, "line", hcaes(x = date, y = value, group = variable))
+```
+
+
+### Commodity Price Index 
+```{r}
+all_index <- fredr(
+  series_id = "PALLFNFINDEXQ",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date(),
+  frequency = 'q')
+
+energy_index <- gdp <- fredr(
+  series_id = "PNRGINDEXM",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date(),
+  frequency = 'q')
+
+food_index <- gdp <- fredr(
+  series_id = "PFOODINDEXM",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date(),
+  frequency = 'q')
+
+
+nonenergy_index <- gdp <- fredr(
+  series_id = "PNFUELINDEXM",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date(),
+  frequency = 'q')
+
+
+comm_index <- all_index %>% 
+  select(c(date, value)) %>% 
+  left_join(select(energy_index, c('date', 'value')), by = 'date') %>% 
+  left_join(select(food_index, c('date', 'value')), by = 'date') %>%
+  left_join(select(nonenergy_index, c('date', 'value')), by = 'date') %>%
+  setNames(c('date', 'All', 'Energy',
+             'Food', 'Non-Energy')) %>% 
+  mutate(across(where(is.numeric), ~round(.,2)))
+  
+
+
+comm_index1 <- tbl2xts::tbl_xts(comm_index)
+highchart(type = "stock") %>% 
+  hc_add_series(comm_index1$Energy, type = "line",
+                name = 'Energy Price Index',
+                color = "#d35400",
+                lineWidth = 4.5,
+                tooltip = list(valueSuffix = '')) %>% 
+  
+  hc_add_series(comm_index1$Food, type = "line",
+                name = 'Food Price Index',
+                lineWidth = 4.5,
+                tooltip = list(valueSuffix = '')) %>% 
+  hc_add_series(comm_index1$`Non-Energy`, type = "line",
+                name = 'Non Energy Price Index',
+                lineWidth = 4.5,
+                tooltip = list(valueSuffix = '')) %>%
+  
+  hc_xAxis(dateTimeLabelFormats = list(year = '%Y'), type = "datetime") |>
+  
+  hc_rangeSelector(verticalAlign = "bottom",
+                   buttonTheme = list(
+                     fill= 'none',
+                     stroke= 'none',
+                     'stroke-width'= 0,
+                     r= 8,
+                     
+                     style= list(
+                       color= '#039',
+                       fontWeight= 'bold'
+                     )),
+  
+inputBoxBorderColor= 'gray',
+inputBoxWidth= 120,
+inputBoxHeight= 18,
+inputStyle= list(
+  color= '#039',
+  fontWeight= 'bold'),
+labelStyle= list(
+  color= 'silver',
+  fontWeight= 'bold')
+) |>
+  hc_plotOptions(
+    line = list(lineWidth = 4.5)) |>
+  hc_exporting(
+    enabled = TRUE, # always enabled
+    filename = "Global Commodity Price Index"
+  ) |>                      
+  hc_yAxis(labels = list(align = 'left',
+                         style = list(
+                           color = 'black',
+                           fontSize = 'medium'))) %>% 
+  hc_xAxis(lineColor ='black', lineWidth = 2,
+           tickColor = 'black',
+           labels = list(style = list(
+             color = 'black',
+             fontSize = 'medium')),
+           dateTimeLabelFormats = list(year = "%Y"), 
+           type = "datetime") %>% 
+  hc_legend(enabled = TRUE)  |>
+  # hc_legend(
+  #   align = "top",
+  #   verticalAlign = "top",
+  #   layout = "horizantal") |>
+  hc_tooltip(shared = FALSE) |>
+  hc_title(
+    text = "<b>Global Commodity Price Index</b>",
+    margin = 20,
+    align = "left",
+    style = list(color = "black", useHTML = TRUE)
+  ) |>
+  hc_subtitle(
+    text = "Index 2016 = 100",
+    align = "left",
+    style = list(color = "black", fontWeight = "bold")
+  ) 
+
+
+```
+
+
+Row {data-width= 700}
+--------------------------------------------------------------------------------
+### Unemployment Rate
+
+```{r unemploy_rates, echo=FALSE,warning=FALSE,fig.width=4}
+unrate <- fredr(
+  series_id = "UNRATE",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date())
+
+
+unrate1 <- unrate |>
+dplyr::select(c('date', 'value'))
+
+highchart(type = "stock") %>% 
+  hc_rangeSelector(verticalAlign = "bottom", 
+                   buttonTheme = list(
+                     fill = "#505053",
+                     stroke = "#000000",
+                     style = list(color = "#CCC"),
+                     states = list(
+                       hover = list(
+                         fill = "#707073",
+                         stroke = "#000000",
+                         style = list(color = "white")
+                       ))),
+                   buttons = list(
+                     list(type = 'all', text = 'All'),
+                     list(type = 'ytd', text = 'YTD'),
+                     list(type = 'month', count = 6, text = '6m'),
+                     list(type = 'year', count = 1, text = '1y'),
+                     list(type = 'year', count = 5, text = '5y'),
+                     list(type = 'year', count = 10, text = '10y')),
+                   inputBoxBorderColor = 'gray',
+                   inputBoxWidth = 120,
+                   inputBoxHeight = 20) %>% 
+  hc_add_series(unrate1, "line", color = "#337F05",
+                tooltip = list(valueSuffix = '%'),
+                hcaes(x = date, y = value)) %>% 
+  hc_plotOptions(
+    line = list(lineWidth = 5)) |>
+  hc_exporting(
+    enabled = TRUE, # always enabled
+    filename = "Unemployment rate"
+  ) %>% 
+  hc_title(text = 'USA Unemployment Rate', align = 'left') %>% 
+  hc_yAxis(labels = list(align = 'left',
+    
+    style = list(
+    color = 'black',
+    fontSize = 'medium'))) %>% 
+  hc_xAxis(lineColor ='black', lineWidth = 2,
+           tickColor = 'black',
+           labels = 
+             list(style = list(
+                  color = 'black',
+                  fontSize = 'medium')))
+
+```
+
+
+
+### Unemployment Claims
+
+```{r claims,echo=FALSE,warning=FALSE,fig.width=4}
+# Initial Claims  (ICSA)
+unemp_claims <- fredr(
+  series_id = "ICSA",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date(),
+  aggregation_method = 'avg',
+  frequency = 'm',
+  units = 'lin')
+
+unemp_claims1 <- unemp_claims |>
+  dplyr::select(c('date', 'value'))
+#  plot_ly( x = ~date, y = ~value, type = 'scatter', mode = 'lines',
+#           line = list(color = 'rgb(22, 96, 167)', width = 5)) |>
+#   layout(title = "Unemployment Claims USA",
+#          xaxis = list(title = "Months"),
+#          yaxis = list (title = "Unemployment Claims Thousands"))
+
+
+highchart(type = "stock") %>% 
+  hc_add_series(data = unemp_claims1, type = "line", hcaes(x = date, y = value),
+                name = "Unemployment Claims", color = 'black',
+                lineWidth = 4.5) |>
+  
+  hc_xAxis(lineColor ='black', lineWidth = 2,
+           tickColor = 'black',
+           labels = list(style = list(
+                        color = 'black',
+                        fontSize = 'medium')),
+           dateTimeLabelFormats = list(year = "%Y"), 
+           type = "datetime") %>% 
+  hc_rangeSelector(verticalAlign = "bottom",  
+                   buttons = list(
+                     list(type = 'all', text = 'All'),
+                     list(type = 'ytd', text = 'YTD'),
+                     list(type = 'month', count = 6, text = '6m'),
+                     list(type = 'year', count = 1, text = '1y'),
+                     list(type = 'year', count = 5, text = '5y'),
+                     list(type = 'year', count = 10, text = '10y'))) %>% 
+  hc_yAxis(labels = list(align = 'left',
+                         style = list(
+                           color = 'black',
+                           fontSize = 'medium'))) %>% 
+  hc_legend(
+    enabled = TRUE, 
+    align = "top",
+    verticalAlign = "top",
+    layout = "vertical",
+    verticalAlign=  'top') |>
+  hc_title(
+    text = "<b>Unemployment Claims</b>",
+    margin = 20,
+    align = "center",
+    style = list(color = "black", useHTML = TRUE)
+    )
+
+```
+
+
+Row
+--------------------------------------------------------------------------------
+### Interest Rates 
+```{r interest_rates,echo=FALSE,warning=FALSE,fig.width=4}
+
+twoyear <- fredr(
+  series_id = "DGS2",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date(),
+  frequency = 'm')
+
+
+
+oneyear <- fredr(
+  series_id = "DGS1",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date(),
+  frequency = 'm')
+
+threemonth <- fredr(
+  series_id = "DGS3MO",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date(),
+  frequency = 'm')
+
+sixmonth <- fredr(
+  series_id = "DGS6MO",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date(),
+  frequency = 'm')
+
+
+tbills <- fredr(
+  series_id = "TB3MS",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date(),
+  frequency = 'm')
+
+
+fedfunds <- fredr(
+  series_id = "FEDFUNDS",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date(),
+  frequency = 'm')
+
+
+irates <- cbind(threemonth[,c(1,3)],sixmonth[,3],
+                oneyear[,3],
+                twoyear[,3])
+# fedfunds[,3]
+
+names(irates) <- c('date','three-month', 'six-months',
+                   'one-year',
+                   'two-year')
+
+irates1 <- irates %>%  
+  left_join(dplyr::select(fedfunds, c('date', 'value')), by = 'date') %>% 
+  dplyr::rename(`fed-funds` = value) %>% 
+  modify_if(is.numeric,~./100) %>% 
+  pivot_longer(names_to = 'rate_type', 
+               values_to = 'interest_rate', 
+               -date)
+
+
+# p_rates_usa <- irates1 %>% 
+#   filter(date>= as.Date('2008-01-01')) %>% 
+#   ggplot(aes(x= date, y = interest_rate,color = rate_type)) +
+#   geom_line(lineend = 'round', linewidth = 1.3, na.rm = T) +
+#   scale_y_continuous(labels = scales::percent_format() ,
+#                      breaks = scales::breaks_width(.005)) +
+#   scale_x_date(labels = scales::label_date("%m-%Y"),
+#                date_breaks = '12 months') +
+#   labs(x= "Date", y = 'Interest rates', 
+#        caption = 'Source: St.Louis Fred\nData as at:',
+#        title = 'Key Benchmark Interest Rates') +
+#   scale_color_jco() +
+#   theme_minimal()
+# #'
+# #'
+# #'
+# 
+# p_rates_usa %>%  
+#   ggplotly()
+
+
+irates2 <- irates1 |> 
+  pivot_wider(names_from = rate_type, values_from = interest_rate) %>% 
+  modify_if(is.numeric, ~.*100)
+
+
+
+
+# hchart(irates1, "line", hcaes(x = date, y = interest_rate, 
+#                               group = rate_type))
+#  
+
+highchart(type = "stock") %>% 
+  hc_add_series(data = irates2, type = "line",
+                hcaes(x = date, y = `fed-funds`),
+                name = "Fed-Funds", color = "#8C2981",
+                lineWidth = 4.5) |>
+  hc_add_series(data = irates2, type = "line",
+                hcaes(x = date, y = `one-year`),
+                name = "One-Year", color = 'black',
+                lineWidth = 4.5) |>
+  hc_add_series(data = irates2, type = "line",
+                hcaes(x = date, y = `two-year`),
+                name = "Two-Year", color = 'red',
+                lineWidth = 4.5) |>
+  
+  hc_add_series(data = irates2, type = "line",
+                hcaes(x = date, y = `six-months`),
+                name = "Six-Month", color = "#f1c40f",
+                lineWidth = 4.5) |>
+  hc_add_series(data = irates2, type = "line",
+                hcaes(x = date, y = `three-month`),
+                name = "Tnree-Month", color = "#2ecc71",
+                lineWidth = 4.5) |>
+  
+  hc_xAxis(lineColor ='black', lineWidth = 2,
+           tickColor = 'black',
+           labels = list(style = list(
+             color = 'black',
+             fontSize = 'medium')),
+           dateTimeLabelFormats = list(year = "%Y"), 
+           type = "datetime") %>% 
+  hc_rangeSelector(verticalAlign = "bottom",  
+                   buttons = list(
+                     list(type = 'all', text = 'All'),
+                     list(type = 'ytd', text = 'YTD'),
+                     list(type = 'month', count = 6, text = '6m'),
+                     list(type = 'year', count = 1, text = '1y'),
+                     list(type = 'year', count = 5, text = '5y'),
+                     list(type = 'year', count = 10, text = '10y'))) %>% 
+  hc_yAxis(labels = list(align = 'left',
+                         style = list(
+                           color = 'black',
+                           fontSize = 'medium'))) %>% 
+  hc_title(text = 'Interest rates USA',
+           align = 'left',
+           style = list(fontWeight = 'bold')) |>
+  hc_legend(
+    enabled = TRUE, 
+    align = "top",
+    verticalAlign = "top",
+    layout = "vertical",
+    verticalAlign=  'top')
+ 
+
+
+```
+
+### Yield Spreads
+```{r yield-spreads, echo=FALSE,warning=FALSE,fig.width=4}
+
+
+# 10-Year Treasury Constant Maturity Minus 2-Year Treasury Constant Maturity  (T10Y2Y)
+yield_curve1 <- fredr(
+  series_id = "T10Y2Y",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date(),
+  frequency = 'm')
+
+
+# 10-Year Treasury Constant Maturity Minus 3-Month Treasury Constant Maturity  (T10Y3M)
+yield_curve2 <- fredr(
+  series_id = "T10Y3M",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date(),
+  frequency = 'm')
+
+
+yield_curve3 <- yield_curve1 %>%
+  dplyr::select(c("date", "value")) %>% 
+  left_join(dplyr::select(yield_curve2, c('date', 'value')), by = 'date') %>%
+  purrr::set_names(c("date",
+                     "Yield-Curve-Two", "Yield-Curve-three")) %>% 
+  dplyr::rename_all(~str_to_title(.))
+
+
+yield_curve4 <- tbl_xts(yield_curve3)
+
+
+highchart(type = "stock") %>% 
+  hc_add_series(yield_curve4$`Yield-Curve-Two`, type = "line",
+                name = 'two-year yield curve',
+                color = "#d35400",
+                lineWidth = 4.5,
+                tooltip = list(valueSuffix = 'k')) |>
+    hc_add_series(yield_curve4$`Yield-Curve-Three`, type = "line",
+                  name = 'Three month yeild curve',
+                  color = "#39057F",
+                  lineWidth = 4.5,
+                  tooltip = list(valueSuffix = 'k')) |>
+
+  hc_xAxis(lineColor ='black', lineWidth = 2,
+           tickColor = 'black',
+           labels = list(style = list(
+             color = 'black',
+             fontSize = 'medium')),
+           dateTimeLabelFormats = list(year = "%Y"), 
+           type = "datetime") %>% 
+  hc_rangeSelector(verticalAlign = "bottom",  
+                   buttons = list(
+                     list(type = 'all', text = 'All'),
+                     list(type = 'ytd', text = 'YTD'),
+                     list(type = 'month', count = 6, text = '6m'),
+                     list(type = 'year', count = 1, text = '1y'),
+                     list(type = 'year', count = 5, text = '5y'),
+                     list(type = 'year', count = 10, text = '10y'))) %>% 
+  hc_yAxis(labels = list(align = 'left',
+                         style = list(
+                           color = 'black',
+                           fontSize = 'medium'))) %>% 
+  hc_title(text = 'Yield Curves USA',
+           align = 'center',
+           style = list(fontWeight = 'bold')) |>
+  hc_legend(
+    enabled = TRUE, 
+    align = "top",
+    verticalAlign = "top",
+    layout = "vertical",
+    verticalAlign=  'top')
+
+
+```
+
+
+Row
+------------
+### Stock Market
+
+```{r stock_market, echo=FALSE}
+# Dow Jones Industrial Average  (DJIA)
+
+stock_market1 <- fredr(
+  series_id = "DJIA",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date(),
+  frequency = 'm')
+
+
+# S&P 500  (SP500)
+stock_market2 <- fredr(
+  series_id = "SP500",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date(),
+  frequency = 'm')
+
+
+
+stock_market3 <- stock_market1 %>% 
+  select(c('date', 'value')) %>%  
+  left_join(select(stock_market2,c('date', 'value')), by = 'date') %>% 
+  set_names(c('date', 'Dow-Jones', 'S&P500')) 
+
+
+
+stock_market4 <- tbl_xts(stock_market3)
+
+
+  highchart(type = "stock") %>% 
+  hc_add_series(stock_market4$`Dow-Jones`, type = "line",
+                name = 'Dow-Jones',
+                color = "#d35400",
+                lineWidth = 4.5,
+                tooltip = list(valueSuffix = 'k')) |>
+    hc_add_series(stock_market4$`S&P500`, type = "line",
+                  name = 'S&P500',
+                  color = "#111111",
+                  lineWidth = 4.5,
+                  tooltip = list(valueSuffix = 'k')) |>
+
+  hc_xAxis(lineColor ='black', lineWidth = 2,
+           tickColor = 'black',
+           labels = list(style = list(
+             color = 'black',
+             fontSize = 'medium')),
+           dateTimeLabelFormats = list(year = "%Y"), 
+           type = "datetime") %>% 
+  hc_rangeSelector(verticalAlign = "bottom",  
+                   buttons = list(
+                     list(type = 'all', text = 'All'),
+                     list(type = 'ytd', text = 'YTD'),
+                     list(type = 'month', count = 6, text = '6m'),
+                     list(type = 'year', count = 1, text = '1y'),
+                     list(type = 'year', count = 5, text = '5y'),
+                     list(type = 'year', count = 10, text = '10y'))) %>% 
+  hc_yAxis(labels = list(align = 'left',
+                         style = list(
+                           color = 'black',
+                           fontSize = 'medium'))) %>% 
+  hc_title(text = 'Stock Markets USA',
+           align = 'center',
+           style = list(fontWeight = 'bold')) |>
+  hc_legend(
+    enabled = TRUE, 
+    align = "top",
+    verticalAlign = "top",
+    layout = "vertical",
+    verticalAlign=  'top')
+
+
+
+```
+
+Row
+--------------------------------------------------------------------------------
+### Industrial Production
+```{r industrial_production}
+
+industrial_product <- fredr(
+  series_id = "INDPRO",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date(),
+  frequency = 'm',
+  units = 'lin')
+
+
+p1 <- industrial_product %>% 
+  select(c('date', "value")) %>% 
+  mutate(growth = (value/lag(value,12)-1)*100)
+
+p1_xts <- tbl2xts::tbl_xts(p1)
+
+highchart(type = "stock") %>% 
+  hc_add_series(p1_xts$growth, type = "line",
+                name = 'Industrial Production',
+                color = "#d35400",
+                lineWidth = 4.5,
+                tooltip = list(valueSuffix = '%')) |>
+  
+ 
+  hc_xAxis(dateTimeLabelFormats = list(year = '%Y'), type = "datetime") |>
+  
+  hc_rangeSelector(verticalAlign = "bottom",  
+                   buttons = list(
+                     list(type = 'all', text = 'All'),
+                     list(type = 'ytd', text = 'YTD'),
+                     list(type = 'month', count = 6, text = '6m'),
+                     list(type = 'year', count = 1, text = '1y'),
+                     list(type = 'year', count = 5, text = '5y'),
+                     list(type = 'year', count = 10, text = '10y'))) |>
+  hc_plotOptions(
+    line = list(lineWidth = 4.5)) |>
+  hc_exporting(
+    enabled = TRUE, # always enabled
+    filename = "Growth Rate Industrial Production USA"
+  ) |>                      
+  hc_yAxis(labels = list(align = 'left',
+                         style = list(
+                           color = 'black',
+                           fontSize = 'medium'))) %>% 
+  hc_xAxis(lineColor ='black', lineWidth = 2,
+           tickColor = 'black',
+           labels = list(style = list(
+             color = 'black',
+             fontSize = 'medium')),
+           dateTimeLabelFormats = list(year = "%Y"), 
+           type = "datetime") %>% 
+  hc_legend(enabled = TRUE)  |>
+  # hc_legend(
+  #   align = "top",
+  #   verticalAlign = "top",
+  #   layout = "horizantal") |>
+  hc_tooltip(shared = FALSE) |>
+  hc_title(
+    text = "<b>Industrial Prodution Growth rate</b>",
+    margin = 20,
+    align = "left",
+    style = list(color = "black", useHTML = TRUE)
+  )
+
+
+```
+
+
+### Consumer Sentiment 
+```{r sentiment}
+cons_sentiment <- fredr(
+  series_id = "UMCSENT",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date(),
+  frequency = 'm',
+  units = 'lin')
+
+
+
+p1 <- cons_sentiment %>% 
+  select(c('date', "value")) 
+
+p1_xts <- tbl2xts::tbl_xts(p1)
+
+highchart(type = "stock") %>% 
+  hc_add_series(p1_xts$value, type = "line",
+                name = 'Consumer Sentiment',
+                color = "#0D1377",
+                lineWidth = 4.5,
+                tooltip = list(valueSuffix = '%')) |>
+  
+ 
+  hc_xAxis(dateTimeLabelFormats = list(year = '%Y'), type = "datetime") |>
+  
+  hc_rangeSelector(verticalAlign = "bottom",  
+                   buttons = list(
+                     list(type = 'all', text = 'All'),
+                     list(type = 'ytd', text = 'YTD'),
+                     list(type = 'month', count = 6, text = '6m'),
+                     list(type = 'year', count = 1, text = '1y'),
+                     list(type = 'year', count = 5, text = '5y'),
+                     list(type = 'year', count = 10, text = '10y'))) |>
+  hc_plotOptions(
+    line = list(lineWidth = 4.5)) |>
+  hc_exporting(
+    enabled = TRUE, # always enabled
+    filename = "Consumer Sentiment"
+  ) |>                      
+  hc_yAxis(labels = list(align = 'left',
+                         style = list(
+                           color = 'black',
+                           fontSize = 'medium'))) %>% 
+  hc_xAxis(lineColor ='black', lineWidth = 2,
+           tickColor = 'black',
+           labels = list(style = list(
+             color = 'black',
+             fontSize = 'medium')),
+           dateTimeLabelFormats = list(year = "%Y"), 
+           type = "datetime") %>% 
+  hc_legend(enabled = TRUE)  |>
+  # hc_legend(
+  #   align = "top",
+  #   verticalAlign = "top",
+  #   layout = "horizantal") |>
+  hc_tooltip(shared = FALSE) |>
+  hc_title(
+    text = "<b>Consumer Sentiment</b>",
+    margin = 20,
+    align = "left",
+    style = list(color = "black", useHTML = TRUE)
+  )
+
+```
+
+Row
+-----------
+### Housing Market
+```{r housing_sector}
+# New Privately-Owned Housing Units Authorized in Permit-Issuing Places: 
+# Total Units  (PERMIT)
+house_starts <- fredr(
+  series_id = "PERMIT",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date(),
+  frequency = 'm')
+
+
+# New Privately-Owned Housing Units Started: Total Units  (HOUST)
+house_starts1 <- fredr(
+  series_id = "HOUST",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date(),
+  frequency = 'm')
+
+
+p_house <- house_starts %>% 
+  select(c('date', "value")) |>
+  left_join(dplyr::select(house_starts1, c('date', "value")), by = 'date') |>
+  set_names(c("Date", "House-Permits", 'House-Starts')) 
+
+
+
+p_house1 <-  tbl2xts::tbl_xts(p_house)
+
+
+
+highchart(type = "stock") %>% 
+  hc_add_series(p_house1$`House-Permits`, type = "line",
+                name = 'Housing permits',
+                color = "#d35400",
+                lineWidth = 4.5,
+                tooltip = list(valueSuffix = 'k')) |>
+  hc_add_series(p_house1$`House-Starts`, type = "line",
+                name = 'Housing starts',
+                color = "#485CC7",
+                lineWidth = 4.5,
+                tooltip = list(valueSuffix = 'k')) |>
+  
+ 
+  hc_xAxis(dateTimeLabelFormats = list(year = '%Y'), type = "datetime") |>
+  
+  hc_rangeSelector(verticalAlign = "bottom",  
+                   buttons = list(
+                     list(type = 'all', text = 'All'),
+                     list(type = 'ytd', text = 'YTD'),
+                     list(type = 'month', count = 6, text = '6m'),
+                     list(type = 'year', count = 1, text = '1y'),
+                     list(type = 'year', count = 5, text = '5y'),
+                     list(type = 'year', count = 10, text = '10y'))) |>
+  hc_plotOptions(
+    line = list(lineWidth = 4.5)) |>
+  hc_exporting(
+    enabled = TRUE, # always enabled
+    filename = "Housing Market"
+  ) |>                      
+  hc_yAxis(labels = list(align = 'left',
+                         style = list(
+                           color = 'black',
+                           fontSize = 'medium'))) %>% 
+  hc_xAxis(lineColor ='black', lineWidth = 2,
+           tickColor = 'black',
+           labels = list(style = list(
+             color = 'black',
+             fontSize = 'medium')),
+           dateTimeLabelFormats = list(year = "%Y"), 
+           type = "datetime") %>% 
+  hc_legend(enabled = TRUE)  |>
+  # hc_legend(
+  #   align = "top",
+  #   verticalAlign = "top",
+  #   layout = "horizantal") |>
+  hc_tooltip(shared = FALSE) |>
+  hc_title(
+    text = "<b>Housing Market Developments</b>",
+    margin = 20,
+    align = "left",
+    style = list(color = "black", useHTML = TRUE)
+  )
+
+
+```
+
+
+## Row
+
+### Backing Ratio
+```{r backing_ratio}
+
+path <- "data/MFS_data.xlsx" 
+
+
+
+dfs_nyf <- path %>% 
+  excel_sheets() %>% 
+  purrr::set_names() %>% 
+  purrr::map(read_excel, path = path)
+
+# 
+# names(dfs_nyf)
+# 
+# dfs_nyf %>%  pluck('backing_ratio') %>% 
+#   filter(entity_id == 'ECCU309') %>% 
+#   mutate(date_dt = ymd(date_dt)) %>% 
+#   mutate(rolling_std = rollapply(reporting_amount,width=3,
+#                                  FUN=sd,fill=0,align="r")) %>% 
+#   select(c(4,3,7)) %>% 
+#   ggplot(aes(x = date_dt, y = rolling_std)) +
+#   geom_line(linewidth = 1.3, lineend = 'round')
+
+# p_backing <- 
+p_backing <- dfs_nyf %>%  pluck('backing_ratio') %>% 
+  filter(entity_id == 'ECCU309') %>% 
+  mutate(date_dt = ymd(date_dt)) %>% 
+  select(c(4,3)) %>% 
+  dplyr::rename(date = date_dt)
+
+
+
+p_backing1 <-  tbl2xts::tbl_xts(p_backing)
+
+
+
+highchart(type = "stock") %>% 
+  hc_add_series(p_backing1$reporting_amount, type = "line",
+                name = 'Backing Ratio',
+                color = "#0713CC",
+                lineWidth = 4.5,
+                tooltip = list(valueSuffix = '%')) |>
+ 
+  hc_xAxis(dateTimeLabelFormats = list(year = '%Y'), type = "datetime") |>
+  
+  hc_rangeSelector(verticalAlign = "bottom",  
+                   buttons = list(
+                     list(type = 'all', text = 'All'),
+                     list(type = 'ytd', text = 'YTD'),
+                     list(type = 'month', count = 6, text = '6m'),
+                     list(type = 'year', count = 1, text = '1y'),
+                     list(type = 'year', count = 5, text = '5y'),
+                     list(type = 'year', count = 10, text = '10y'))) |>
+  hc_plotOptions(
+    line = list(lineWidth = 4.5)) |>
+  hc_exporting(
+    enabled = TRUE, # always enabled
+    filename = "Backing Ratio"
+  ) |>                      
+  hc_yAxis(labels = list(align = 'left',
+                         style = list(
+                           color = 'black',
+                           fontSize = 'medium'))) %>% 
+  hc_xAxis(lineColor ='black', lineWidth = 2,
+           tickColor = 'black',
+           labels = list(style = list(
+             color = 'black',
+             fontSize = 'medium')),
+           dateTimeLabelFormats = list(year = "%Y"), 
+           type = "datetime") %>% 
+  hc_legend(enabled = TRUE)  |>
+  # hc_legend(
+  #   align = "top",
+  #   verticalAlign = "top",
+  #   layout = "horizantal") |>
+  hc_tooltip(shared = FALSE) |>
+  hc_title(
+    text = "<b>ECCB Backing Ratio</b>",
+    margin = 20,
+    align = "left",
+    style = list(color = "black", useHTML = TRUE)
+  )
+
+```
+
+
+
+### Change Backing Ratio
+
+```{r}
+
+p_backing2 <- dfs_nyf %>%  
+  pluck('backing_ratio') %>% 
+  filter(entity_id == 'ECCU309') %>% 
+  mutate(date_dt = ymd(date_dt)) %>% 
+  select(c(4,3)) %>% 
+  mutate(Change = round(reporting_amount - lag(reporting_amount,12) ),2) %>% 
+  dplyr::rename(date = date_dt)
+
+
+
+p_backing3 <-  tbl2xts::tbl_xts(p_backing2)
+
+
+
+highchart(type = "stock") %>% 
+  hc_add_series(p_backing3$Change, type = "line",
+                name = 'Backing Ratio',
+                color = "#33D105",
+                lineWidth = 4.5,
+                tooltip = list(valueSuffix = '%')) |>
+ 
+  
+ 
+  hc_xAxis(dateTimeLabelFormats = list(year = '%Y'), type = "datetime") |>
+  
+  hc_rangeSelector(verticalAlign = "bottom",  
+                   buttons = list(
+                     list(type = 'all', text = 'All'),
+                     list(type = 'ytd', text = 'YTD'),
+                     list(type = 'month', count = 6, text = '6m'),
+                     list(type = 'year', count = 1, text = '1y'),
+                     list(type = 'year', count = 5, text = '5y'),
+                     list(type = 'year', count = 10, text = '10y'))) |>
+  hc_plotOptions(
+    line = list(lineWidth = 4.5)) |>
+  hc_exporting(
+    enabled = TRUE, # always enabled
+    filename = "Backing Ratio"
+  ) |>                      
+  hc_yAxis(labels = list(align = 'left',
+                         style = list(
+                           color = 'black',
+                           fontSize = 'medium'))) %>% 
+  hc_xAxis(lineColor ='black', lineWidth = 2,
+           tickColor = 'black',
+           labels = list(style = list(
+             color = 'black',
+             fontSize = 'medium')),
+           dateTimeLabelFormats = list(year = "%Y"), 
+           type = "datetime") %>% 
+  hc_legend(enabled = TRUE)  |>
+  # hc_legend(
+  #   align = "top",
+  #   verticalAlign = "top",
+  #   layout = "horizantal") |>
+  hc_tooltip(shared = FALSE) |>
+  hc_title(
+    text = "<b>Change In Backing Ratio (y-o-y)</b>",
+    margin = 20,
+    align = "left",
+    style = list(color = "black", useHTML = TRUE)
+  )
+  
+```
+
+Row
+-------------------------------------------------------------------------------
+### Foreign Securities
+
+```{r securities}
+
+
+p_securities <- dfs_nyf %>%  pluck('securities') %>% 
+  filter(entity_id == 'ECCU309') %>% 
+  mutate(date_dt = ymd(date_dt)) %>% 
+  select(c(4,3)) %>% 
+  mutate(y = reporting_amount/1000000) %>% 
+  dplyr::rename(date = date_dt)
+  
+
+p_securities1 <- tbl2xts::tbl_xts(p_securities)
+
+highchart(type = "stock") %>% 
+  hc_add_series(p_securities1$y, type = "line",
+                name = 'Securities',
+                color = "#F7C433",
+                lineWidth = 4.5,
+                tooltip = list(valueSuffix = 'B')) |>
+ 
+  
+ 
+  hc_xAxis(dateTimeLabelFormats = list(year = '%Y'), type = "datetime") |>
+  
+  hc_rangeSelector(verticalAlign = "bottom",  
+                   buttons = list(
+                     list(type = 'all', text = 'All'),
+                     list(type = 'ytd', text = 'YTD'),
+                     list(type = 'month', count = 6, text = '6m'),
+                     list(type = 'year', count = 1, text = '1y'),
+                     list(type = 'year', count = 5, text = '5y'),
+                     list(type = 'year', count = 10, text = '10y'))) |>
+  hc_plotOptions(
+    line = list(lineWidth = 4.5)) |>
+  hc_exporting(
+    enabled = TRUE, # always enabled
+    filename = "Backing Ratio"
+  ) |>                      
+  hc_yAxis(labels = list(align = 'left',
+                         style = list(
+                           color = 'black',
+                           fontSize = 'medium'))) %>% 
+  hc_xAxis(lineColor ='black', lineWidth = 2,
+           tickColor = 'black',
+           labels = list(style = list(
+             color = 'black',
+             fontSize = 'medium')),
+           dateTimeLabelFormats = list(year = "%Y"), 
+           type = "datetime") %>% 
+  hc_legend(enabled = TRUE)  |>
+  # hc_legend(
+  #   align = "top",
+  #   verticalAlign = "top",
+  #   layout = "horizantal") |>
+  hc_tooltip(shared = FALSE) |>
+  hc_title(
+    text = "<b>Stock of Foreign Securities</b>",
+    margin = 20,
+    align = "left",
+    style = list(color = "black", useHTML = TRUE)
+  )  
+  
+ 
+
+```
+
+
+### Foreign Assets
+
+```{r foreign_assets}
+p_fa <- dfs_nyf %>%  pluck('foreign_assets') %>% 
+  filter(entity_id == 'ECCU309') %>% 
+  mutate(date_dt = ymd(date_dt)) %>% 
+  select(c(4,3)) %>% 
+  dplyr::mutate( y = reporting_amount/1000000) %>% 
+  dplyr::rename(date = date_dt)
+
+
+
+p_fa1 <- tbl2xts::tbl_xts(p_fa)
+  
+highchart(type = "stock") %>% 
+  hc_add_series(p_fa1$y, type = "line",
+                name = 'Foreign-Assets',
+                color = "#201802",
+                lineWidth = 4.5,
+                tooltip = list(valueSuffix = 'B')) |>
+ 
+  
+ 
+  hc_xAxis(dateTimeLabelFormats = list(year = '%Y'), type = "datetime") |>
+  
+  hc_rangeSelector(verticalAlign = "bottom",  
+                   buttons = list(
+                     list(type = 'all', text = 'All'),
+                     list(type = 'ytd', text = 'YTD'),
+                     list(type = 'month', count = 6, text = '6m'),
+                     list(type = 'year', count = 1, text = '1y'),
+                     list(type = 'year', count = 5, text = '5y'),
+                     list(type = 'year', count = 10, text = '10y'))) |>
+  hc_plotOptions(
+    line = list(lineWidth = 4.5)) |>
+  hc_exporting(
+    enabled = TRUE, # always enabled
+    filename = "Backing Ratio"
+  ) |>                      
+  hc_yAxis(labels = list(align = 'left',
+                         style = list(
+                           color = 'black',
+                           fontSize = 'medium'))) %>% 
+  hc_xAxis(lineColor ='black', lineWidth = 2,
+           tickColor = 'black',
+           labels = list(style = list(
+             color = 'black',
+             fontSize = 'medium')),
+           dateTimeLabelFormats = list(year = "%Y"), 
+           type = "datetime") %>% 
+  hc_legend(enabled = TRUE)  |>
+  # hc_legend(
+  #   align = "top",
+  #   verticalAlign = "top",
+  #   layout = "horizantal") |>
+  hc_tooltip(shared = FALSE) |>
+  hc_title(
+    text = "<b>Stock of Foreign Assets</b>",
+    margin = 20,
+    align = "left",
+    style = list(color = "black", useHTML = TRUE)
+  )    
+
+```
+
+
+
+## Row 
+
+### Tourism Arrivals ECCU
+```{r tourism, echo=FALSE}
+path <- "data/realsector.xlsx"
+
+
+df <- path %>%
+  excel_sheets() %>% 
+  purrr::set_names() %>% 
+  map(read_excel, path = path)
+
+
+df1 <- df[["TOTAL TOURSIM"]]
+
+
+df2 <- df1 %>% select(c(6,7)) %>% 
+  mutate(date_dt = as.Date(date_dt))
+
+
+df_ts <- ts(df2[,2], start = c(2000,12), frequency = 12)
+
+
+
+df_ts_sa <- decompose(df_ts, type = 'multiplicative')
+
+
+
+df_ts_sa1 <- as_tibble(df_ts / df_ts_sa$seasonal)
+
+df_tour <- cbind.data.frame(df2, df_ts_sa1) %>% 
+  setNames(c('date', 'tourism', 'tourism_sa')) %>% 
+  mutate(tourism_sa1= (tourism_sa /lag(tourism_sa,12))-1)
+
+
+cap <- 'Data Source | ECCB\nData as at March 2023\nFigures are seasonally adjusted'
+font <- 'Georgia'
+df_tour %>% 
+  filter(date >= as.Date('2016-01-01')) %>% 
+  ggplot(aes(x= date, y = tourism_sa )) +
+  geom_line(linewidth = 1.3) +
+  scale_y_continuous(breaks = breaks_width(50000),
+                     labels = label_comma()) +
+  scale_x_date(date_breaks = '1 year',
+               date_labels = '%Y',
+               limits = c(as.Date('2016-01-01'),
+                          as.Date('2023-06-01'))) +
+  labs(caption = cap, y = 'Tourism Arrivals') +
+  theme_minimal() +
+  theme(axis.text = element_text(size = 15,color = 'black'),
+        axis.title = element_text(size = 15,color = 'black'))
+
+```
+
+### Import Values ECCU
+
+
+
+Row 
+----------------------------------------------------------------
+
+### Data table USA GDP
+```{r}
+
+gdp <- fredr(
+  series_id = "GDPC1",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date(),
+  units = 'cca')
+
+gdp_cfnai <- fredr(
+  series_id = "CFNAIMA3",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date(),
+  frequency = 'q')
+
+gdpnow <- fredr(
+  series_id = "GDPNOW",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date())
+
+gdp %>%  
+  dplyr::select(c('date', 'value')) %>% 
+  left_join(dplyr::select(gdp_cfnai,c('date', 'value')), by = 'date') |>
+  left_join(dplyr::select(gdpnow,c('date', 'value')), by = 'date') |>
+  setNames(c('date', 'GDP', 'CFNAI', 'GDP.Now')) %>% 
+  mutate(across(where(is.numeric), ~round(.,2))) %>% 
+  datatable(class = 'cell-border stripe',
+          # colnames = toTitleCase(names()),
+          extensions = 'Buttons', options = list(
+            dom = 'Blfrtip',
+            buttons = c('copy', 'csv', 'excel', 'pdf', 'print') )
+)
+
+```
+
+Row 
+----------------------------------------------------------------
+### Data table Interest Rates 
+```{r table1}
+
+twoyear <- fredr(
+  series_id = "DGS2",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date(),
+  frequency = 'm')
+
+
+oneyear <- fredr(
+  series_id = "DGS1",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date(),
+  frequency = 'm')
+
+threemonth <- fredr(
+  series_id = "DGS3MO",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date(),
+  frequency = 'm')
+
+sixmonth <- fredr(
+  series_id = "DGS6MO",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date(),
+  frequency = 'm')
+
+
+tbills <- fredr(
+  series_id = "TB3MS",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date(),
+  frequency = 'm')
+
+
+fedfunds <- fredr(
+  series_id = "FEDFUNDS",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date(),
+  frequency = 'm')
+
+
+# 30-Year Fixed Rate Mortgage Average in the United States  (MORTGAGE30US)
+mortg30 <- fredr(
+  series_id = "MORTGAGE30US",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date(),
+  frequency = 'm')
+
+
+# 15-Year Fixed Rate Mortgage Average in the United States  (MORTGAGE15US)
+mortg15 <- fredr(
+  series_id = "MORTGAGE15US",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date(),
+  frequency = 'm')
+
+# 10-Year Treasury Constant Maturity Minus 2-Year Treasury Constant Maturity  (T10Y2Y)
+yield_curve1 <- fredr(
+  series_id = "T10Y2Y",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date(),
+  frequency = 'm')
+
+
+# 10-Year Treasury Constant Maturity Minus 3-Month Treasury Constant Maturity  (T10Y3M)
+yield_curve2 <- fredr(
+  series_id = "T10Y3M",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date(),
+  frequency = 'm')
+
+
+irates2 <- twoyear %>%
+  dplyr::select(c("date", "value")) %>% 
+  left_join(dplyr::select(oneyear, c("date", "value")), by = 'date') |>
+  left_join(dplyr::select(sixmonth, c("date", "value")), by = 'date') |>
+  left_join(dplyr::select(threemonth, c("date", "value")), by = 'date') |>
+  left_join(dplyr::select(fedfunds, c("date", "value")), by = 'date') %>% 
+  left_join(dplyr::select(mortg30, c('date', 'value')), by = 'date') %>% 
+  left_join(dplyr::select(mortg15, c('date', 'value')), by = 'date') %>% 
+  left_join(dplyr::select(yield_curve1, c('date', 'value')), by = 'date') %>%
+  left_join(dplyr::select(yield_curve2, c('date', 'value')), by = 'date') %>%
+  purrr::set_names(c("date","Two-year", "One-year", 'Six-months', 
+                     "Three-months", 'Fed_Funds',"30-Year-Mortgage", "15-Year-Mortgage",
+                     "Yield-Curve1", "Yield-Curve2")) %>% 
+  dplyr::rename_all(~str_to_title(.))
+
+irates2 %>%
+  downloadthis::download_this(
+    output_name = "Interest_rates",
+    output_extension = ".csv",
+    button_label = "Download data as csv",
+    button_type = "success",
+    has_icon = TRUE,
+    icon = "fa fa-save"
+  )
+
+irates2 |>
+  reactable(filterable = TRUE, 
+            searchable = TRUE, 
+            paginationType = "jump",
+            defaultPageSize = 10,
+            minRows = 20)
+```
+
+
+Row 
+----------------------------------------------------------------
+### Data table CPI
+```{r}
+cpi <- fredr(
+  series_id = "CPIAUCSL",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date(),
+  units = 'pc1')
+
+
+cpi_core <- fredr(
+  series_id = "CPILFESL",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date(),
+  units = 'pc1')
+
+# Inflation expectations data 1 year ahead only
+
+inflation_exp <- fredr(
+  series_id = "EXPINF1YR",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date())
+
+
+pce <- fredr(
+  series_id = "PCE",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date(),
+  units = 'pc1')
+
+
+pce_core <- fredr(
+  series_id = "PCEPILFE",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date(),
+  units = 'pc1')
+
+
+
+# Trimmed Mean PCE Inflation Rate Dallas Fed
+inflation_exp2 <- fredr(
+  series_id = "PCETRIM12M159SFRBDAL",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date())
+
+
+# 16% Trimmed-Mean Consumer Price Index Cleveland Fed
+inflation_exp3 <- fredr(
+  series_id = "TRMMEANCPIM159SFRBCLE",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date())
+
+
+# Median Consumer Price Index
+inflation_exp4 <- fredr(
+  series_id = "MEDCPIM159SFRBCLE",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date())
+
+
+inflation_exp1 <- fredr(
+  series_id = "CORESTICKM159SFRBATL",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = Sys.Date())
+
+alt_inflation <- cpi %>% 
+  dplyr::select(c('date', 'value')) %>% 
+  left_join(dplyr::select(cpi_core,c('date', 'value')), by = 'date') |>
+  left_join(dplyr::select(pce,c('date', 'value')), by = 'date') |>
+  
+  left_join(dplyr::select(pce_core,c('date', 'value')), by = 'date') |>
+  left_join(dplyr::select(inflation_exp,c('date', 'value')), by = 'date') |>
+  left_join(dplyr::select(inflation_exp2,c('date', 'value')), by = 'date') |>
+  left_join(dplyr::select(inflation_exp3,c('date', 'value')), by = 'date') |>
+  left_join(dplyr::select(inflation_exp4,c('date', 'value')), by = 'date')  |>
+  left_join(dplyr::select(inflation_exp1,c('date', 'value')), by = 'date')  |>
+  setNames(c('date', "CPI", "CPI-Core", "PCE", "PCE-Core", 
+             'Trimmed-Mean-PCE', '16%-Trimmed-Mean-CPI', 
+             'Median-CPI','Sticky.Price.inflation',
+             'Inflation.Expectation')) %>% 
+  mutate(across(where(is.numeric), ~round(.,2)))
+             
+# alt_inflation |>
+#   reactable(filterable = TRUE, 
+#             searchable = TRUE, 
+#             paginationType = "jump",
+#             defaultPageSize = 20,
+#             minRows = 20)     
+
+
+alt_inflation %>%
+  downloadthis::download_this(
+    output_name = "Inflation_rates",
+    output_extension = ".csv",
+    button_label = "Download data as csv",
+    button_type = "success",
+    has_icon = TRUE,
+    icon = "fa fa-save"
+  )
+
+
+alt_inflation |>
+  gt() |>
+  opt_interactive(
+    use_search = TRUE,
+    use_filters = TRUE,
+    use_resizers = TRUE,
+    use_highlight = TRUE,
+    use_compact_mode = TRUE,
+    use_text_wrapping = FALSE,
+    use_page_size_select = TRUE,
+     page_size_default = 5) %>% 
+   data_color(
+    columns = CPI,
+    palette = "Reds"
+  ) |>
+  data_color(
+    columns = PCE,
+    palette = "Greens"
+  )
+
+```
+
+Row
+-----------------
+**For more information visits us at:**
+
+- `r fa("globe", fill = "steelblue")` [ECCB](https://www.eccb-centralbank.org/)   
+- `r fa("facebook", fill = "steelblue")` [ECCB](https://www.facebook.com/ECCBConnects/) 
+-  `r fa("youtube", fill = "red")` [ECCB](https://www.youtube.com/channel/UCNRvzpgM5-GYe_z5z5lgX_Q)
+- `r fa("linkedin", fill = "blue")` [ECCB](https://www.linkedin.com/in/eastern-caribbean-central-bank-137375147/)
+- Maintained by:[email](allister.hodge@eccb-centralbank.org)  
+- Contact: [RSDAD](RSDAD@eccb-centralbank.org)  
+
+**Date Created:**`r format(Sys.Date(), '%b-%Y')`
+
+```{r end}
+
+library(beepr)
+beep("fanfare")
+
+```
+
