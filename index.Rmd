@@ -40,7 +40,7 @@ fable.ata, fable.prophet,ggsci, ggrepel,tbl2xts))
 
 
 library(fredr)
-fredr::fredr_set_key('7d33f9e550f6a2a4a8161e0207f497b3')
+fredr::fredr_set_key('pat')
 
 knitr::opts_chunk$set(echo = FALSE, 
                       collapse = TRUE,
