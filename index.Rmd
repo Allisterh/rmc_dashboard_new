@@ -14,7 +14,7 @@ output:
         - { icon: "fa-linkedin", href: "https://www.linkedin.com/in/eastern-caribbean-central-bank/", align: right }
         - { icon: "fa-at", href: "mailto:allister.hodge@eccb-centralbank.org", align: right }
 ---
-pppp
+
 
 ```{r setup, include=FALSE}
 library(flexdashboard)
@@ -38,9 +38,9 @@ TSstudio,dygraphs,downloadthis, tbl2xts,reactable,reactablefmtr,DT, gt,
 gtExtras, readxl,tsibble, fable, fabletools,ragg,
 fable.ata, fable.prophet,ggsci, ggrepel,tbl2xts))
 
-
+db_password <- Sys.getenv("pat")
 library(fredr)
-fredr::fredr_set_key('pat')
+fredr::fredr_set_key(db_password)
 
 knitr::opts_chunk$set(echo = FALSE, 
                       collapse = TRUE,
