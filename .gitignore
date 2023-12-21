@@ -11,3 +11,4 @@ data/
 graphs/
 data_scripts/
 www/
+.Renviron
